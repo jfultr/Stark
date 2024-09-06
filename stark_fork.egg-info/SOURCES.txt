@@ -1,0 +1,8 @@
+LICENSE
+README.md
+setup.py
+lib/__init__.py
+stark_fork.egg-info/PKG-INFO
+stark_fork.egg-info/SOURCES.txt
+stark_fork.egg-info/dependency_links.txt
+stark_fork.egg-info/top_level.txt
