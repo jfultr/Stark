@@ -1,0 +1,60 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    
+    // python tracking/test.py stark_lightning_X_trt baseline_rephead_4_lite_search5 --dataset got10k_val --threads 0 --num_gpus 1
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "test",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "tracking/test.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            
+            "args": [
+                "stark_lightning_X_trt", 
+                "baseline_rephead_4_lite_search5", 
+                "--dataset", "got10k_val", 
+                "--threads", "0", 
+                "--num_gpus", "1"
+            ],
+        },
+        {
+            "name": "convert",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "tracking/ORT_lightning_X_trt_backbone_bottleneck_pe.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+        },
+        {
+            "name": "eval auc",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "tracking/analysis_results_ITP.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            
+            "args": [
+                "--script", "stark_lightning_X_trt",
+                "--config", "baseline_rephead_4_lite_search5"
+            ],
+        },
+        {
+            "name": "eval got",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "lib/test/utils/transform_got10k.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            
+            "args": [
+                "--tracker_name", "stark_lightning_X_trt",
+                "--cfg_name", "baseline_rephead_4_lite_search5"
+            ],
+        }
+    ]
+}

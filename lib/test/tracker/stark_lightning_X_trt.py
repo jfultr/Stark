@@ -14,6 +14,10 @@ from lib.test.tracker.stark_utils import PreprocessorX_onnx
 import onnxruntime
 import multiprocessing
 
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.manifold import TSNE
+
 
 class STARK_LightningXtrt(BaseTracker):
     def __init__(self, params, dataset_name):
@@ -54,6 +58,41 @@ class STARK_LightningXtrt(BaseTracker):
         x_patch_arr, resize_factor, x_amask_arr = sample_target(image, self.state, self.params.search_factor,
                                                                 output_sz=self.params.search_size)  # (x1, y1, w, h)
         search, search_mask = self.preprocessor.process(x_patch_arr, x_amask_arr)
+
+
+                # Assuming feat has the shape [64, 1, 128], reshape it to [64, 128] for t-SNE
+        feat = self.z_dict1['feat'].cpu() # Replace with actual embeddings
+        feat_reshaped = feat.squeeze(1)  # Shape becomes [64, 128]
+
+        # Apply t-SNE to reduce the dimensionality
+        tsne = TSNE(n_components=2, random_state=42)
+        feat_tsne = tsne.fit_transform(feat_reshaped)  # Shape [64, 2]
+
+        # Plot the result
+        plt.figure(figsize=(8, 6))
+        plt.scatter(feat_tsne[:, 0], feat_tsne[:, 1], cmap='viridis')
+        plt.title("t-SNE Visualization of Feature Embeddings PyTorch")
+        plt.xlabel("Dimension 1")
+        plt.ylabel("Dimension 2")
+        plt.colorbar()
+        plt.show()
+
+
+        # Reshape pos to [64, 128] and apply t-SNE
+        pos = self.z_dict1['pos'].cpu()  # Replace with actual embeddings
+        pos_reshaped = pos.squeeze(1)  # Shape becomes [64, 128]
+
+        pos_tsne = tsne.fit_transform(pos_reshaped)  # Shape [64, 2]
+
+        # Plot positional embeddings
+        plt.figure(figsize=(8, 6))
+        plt.scatter(pos_tsne[:, 0], pos_tsne[:, 1], cmap='plasma')
+        plt.title("t-SNE Visualization of Positional Embeddings PyTorch")
+        plt.xlabel("Dimension 1")
+        plt.ylabel("Dimension 2")
+        plt.colorbar()
+        plt.show()
+
         with torch.no_grad():
             x_dict = self.network.forward_backbone(search, zx="search", mask=search_mask)
             # merge the template and the search
@@ -69,12 +108,14 @@ class STARK_LightningXtrt(BaseTracker):
         self.state = clip_box(self.map_box_back(pred_box, resize_factor), H, W, margin=10)
 
         # for debug
-        if self.debug:
-            x1, y1, w, h = self.state
-            image_BGR = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
-            cv2.rectangle(image_BGR, (int(x1), int(y1)), (int(x1 + w), int(y1 + h)), color=(0, 0, 255), thickness=2)
-            save_path = os.path.join(self.save_dir, "%04d.jpg" % self.frame_id)
-            cv2.imwrite(save_path, image_BGR)
+        # if self.debug:
+        x1, y1, w, h = self.state
+        image_BGR = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+        cv2.rectangle(image_BGR, (int(x1), int(y1)), (int(x1 + w), int(y1 + h)), color=(0, 0, 255), thickness=2)
+        # save_path = os.path.join(self.save_dir, "%04d.jpg" % self.frame_id)
+        # cv2.imwrite(save_path, image_BGR)
+        cv2.imshow('', image_BGR)
+        cv2.waitKey(1)
         return {"target_bbox": self.state}
 
     def map_box_back(self, pred_box: list, resize_factor: float):
@@ -91,22 +132,10 @@ class STARK_LightningXtrt_onnx(BaseTracker):
         super(STARK_LightningXtrt_onnx, self).__init__(params)
         """build two sessions"""
         '''2021.7.5 Add multiple gpu support'''
-        num_gpu = 2
-        print("total number of GPUs is %d, change it if it is not matched with your machine." % num_gpu)
-        try:
-            worker_name = multiprocessing.current_process().name
-            worker_id = int(worker_name[worker_name.find('-') + 1:]) - 1
-            gpu_id = worker_id % num_gpu
-            print(gpu_id)
-        except:
-            gpu_id = 0
         # print("gpu_id", gpu_id)
-        providers = ["CUDAExecutionProvider"]
-        provider_options = [{"device_id": str(gpu_id)}]
-        self.ort_sess_z = onnxruntime.InferenceSession("backbone_bottleneck_pe.onnx", providers=providers,
-                                                       provider_options=provider_options)
-        self.ort_sess_x = onnxruntime.InferenceSession("complete.onnx", providers=providers,
-                                                       provider_options=provider_options)
+        providers = ["CUDAExecutionProvider", "CPUExecutionProvider"]
+        self.ort_sess_z = onnxruntime.InferenceSession("backbone_bottleneck_pe.onnx", providers=providers)
+        self.ort_sess_x = onnxruntime.InferenceSession("complete.onnx", providers=providers)
         self.preprocessor = PreprocessorX_onnx()
         self.state = None
         # for debug
@@ -138,6 +167,41 @@ class STARK_LightningXtrt_onnx(BaseTracker):
                                                                 output_sz=self.params.search_size)  # (x1, y1, w, h)
         search, search_mask = self.preprocessor.process(x_patch_arr, x_amask_arr)
 
+
+        # Assuming feat has the shape [64, 1, 128], reshape it to [64, 128] for t-SNE
+        feat = self.ort_outs_z[0]  # Replace with actual embeddings
+        feat_reshaped = feat.squeeze(1)  # Shape becomes [64, 128]
+
+        # Apply t-SNE to reduce the dimensionality
+        tsne = TSNE(n_components=2, random_state=42)
+        feat_tsne = tsne.fit_transform(feat_reshaped)  # Shape [64, 2]
+
+        # Plot the result
+        plt.figure(figsize=(8, 6))
+        plt.scatter(feat_tsne[:, 0], feat_tsne[:, 1], cmap='viridis')
+        plt.title("t-SNE Visualization of Feature Embeddings ONNX")
+        plt.xlabel("Dimension 1")
+        plt.ylabel("Dimension 2")
+        plt.colorbar()
+        plt.show()
+
+
+        # Reshape pos to [64, 128] and apply t-SNE
+        pos = self.ort_outs_z[2]  # Replace with actual embeddings
+        pos_reshaped = pos.squeeze(1)  # Shape becomes [64, 128]
+
+        pos_tsne = tsne.fit_transform(pos_reshaped)  # Shape [64, 2]
+
+        # Plot positional embeddings
+        plt.figure(figsize=(8, 6))
+        plt.scatter(pos_tsne[:, 0], pos_tsne[:, 1], cmap='plasma')
+        plt.title("t-SNE Visualization of Positional Embeddings ONNX")
+        plt.xlabel("Dimension 1")
+        plt.ylabel("Dimension 2")
+        plt.colorbar()
+        plt.show()
+
+
         ort_inputs = {'img_x': search,
                       'mask_x': search_mask,
                       'feat_vec_z': self.ort_outs_z[0],
@@ -152,12 +216,13 @@ class STARK_LightningXtrt_onnx(BaseTracker):
         self.state = clip_box(self.map_box_back(pred_box, resize_factor), H, W, margin=10)
 
         # for debug
-        if self.debug:
-            x1, y1, w, h = self.state
-            image_BGR = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
-            cv2.rectangle(image_BGR, (int(x1), int(y1)), (int(x1 + w), int(y1 + h)), color=(0, 0, 255), thickness=2)
-            save_path = os.path.join(self.save_dir, "%04d.jpg" % self.frame_id)
-            cv2.imwrite(save_path, image_BGR)
+        # if self.debug:
+        x1, y1, w, h = self.state
+        image_BGR = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+        cv2.rectangle(image_BGR, (int(x1), int(y1)), (int(x1 + w), int(y1 + h)), color=(0, 0, 255), thickness=2)
+        # save_path = os.path.join(self.save_dir, "%04d.jpg" % self.frame_id)
+        cv2.imshow('', image_BGR)
+        cv2.waitKey(1)
         return {"target_bbox": self.state}
 
     def map_box_back(self, pred_box: list, resize_factor: float):
@@ -170,7 +235,7 @@ class STARK_LightningXtrt_onnx(BaseTracker):
 
 
 def get_tracker_class():
-    use_onnx = True
+    use_onnx = False
     if use_onnx:
         print("Using onnx model")
         return STARK_LightningXtrt_onnx
